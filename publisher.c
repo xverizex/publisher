@@ -42,7 +42,40 @@ void init_publisher ( int type, void (*subscribe) ( void *event, void *data ), v
 	pb->size++;
 }
 
-void delete_publisher ( int type, void (*subscribe) ( void *event, void *data ) ) {
+void delete_publisher ( int type, void (*subscribe) ( void *event, void *data ), void *data ) {
+	for ( int i = 0; i < pb->size; i++ ) {
+		if ( pb->types[i] != type ) continue;
+
+		for ( int ii = 0; ii < pb->sub[i].size; ii++ ) {
+			if ( pb->sub[i].subscribe[ii] == subscribe && pb->sub[i].data[ii] == data ) {
+				int size = pb->sub[i].size;
+				int pos = size == ii - 1 ? ii : ii + 1;
+				int ss = size == ii - 1 ? ii - 1 : ii;
+				int dst = ss;
+				int src = pos;
+				for ( int iii = pos; iii < size; iii++ ) {
+					pb->sub[i].subscribe[dst] = pb->sub[i].subscribe[src];
+					pb->sub[i].data[dst] = pb->sub[i].data[src];
+					dst++; src++;
+				}
+				size = --pb->sub[i].size;
+				pb->sub[i].subscribe = realloc ( pb->sub[i].subscribe, size * sizeof ( subs ) );
+				pb->sub[i].data = realloc ( pb->sub[i].data, size * sizeof ( void * ) );
+				ii--;
+			}
+		}
+	}
+}
+
+void delete_all_publisher ( int type ) {
+	for ( int i = 0; i < pb->size; i++ ) {
+		if ( pb->types[i] != type ) continue;
+		pb->sub[i].size = 0;
+		pb->sub[i].subscribe = realloc ( pb->sub[i].subscribe, 0 );
+		pb->sub[i].data = realloc ( pb->sub[i].data, 0 );
+	}
+}
+void delete_all_subscribe ( int type, void (*subscribe) ( void *event, void *data ) ) {
 	for ( int i = 0; i < pb->size; i++ ) {
 		if ( pb->types[i] != type ) continue;
 
@@ -50,18 +83,18 @@ void delete_publisher ( int type, void (*subscribe) ( void *event, void *data ) 
 			if ( pb->sub[i].subscribe[ii] == subscribe ) {
 				int size = pb->sub[i].size;
 				int pos = size == ii - 1 ? ii : ii + 1;
-				int ss = size == ii - 1 ? 0 : size - ii;
-				int dst = ii;
+				int ss = size == ii - 1 ? ii - 1 : ii;
+				int dst = ss;
 				int src = pos;
 				for ( int iii = pos; iii < size; iii++ ) {
 					pb->sub[i].subscribe[dst] = pb->sub[i].subscribe[src];
-					pb->sub[i].data[dst], pb->sub[i].data[src];
+					pb->sub[i].data[dst] = pb->sub[i].data[src];
 					dst++; src++;
 				}
 				size = --pb->sub[i].size;
 				pb->sub[i].subscribe = realloc ( pb->sub[i].subscribe, size * sizeof ( subs ) );
 				pb->sub[i].data = realloc ( pb->sub[i].data, size * sizeof ( void * ) );
-				return;
+				ii--;
 			}
 		}
 	}

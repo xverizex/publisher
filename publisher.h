@@ -1,3 +1,5 @@
+#ifndef __PUBLISHER_H
+#define __PUBLISHER_H
 /*
  * init_publisher - инициализировать издателя. 
  * @type = это тип издателя. Например в enum указывает enum { TRADE, NEWS }, к каждому издателю можно подписаться нескольким функциям.
@@ -14,5 +16,12 @@ void send_event ( int type, void *event );
  * отписаться от издателя.
  * @type = тип издателя.
  * @subscribe = функция указатель. её надо указать, чтобы в этом типе удалить эту функцию от подписки.
+ * @data = указатель на данные. удалиться подписчик именно с этими данными.
  */
-void delete_publisher ( int type, void (*subscribe) ( void *event, void *data ) );
+void delete_publisher ( int type, void (*subscribe) ( void *event, void *data ), void *data );
+/*
+ * удалить всех подписчиков связанных с данной функцией. */
+void delete_all_subscribe ( int type, void (*subscribe) ( void *event, void *data ) );
+/* удалить абсолютно всех подписчиков привязанных к определенному издателю. */
+void delete_all_publisher ( int type );
+#endif
