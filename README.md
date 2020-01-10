@@ -34,7 +34,7 @@ void sub_news ( void *event, void *data ) {
 	printf ( "%d читает %d\n", human->number, news );
 }
 int main ( ) {
-	/* я создал две структуры, которые содержать некоторые данные */
+	/* я создал четыре структуры, которые содержать некоторые данные */
 	struct human human[4] = {
 		{ 1 },
 		{ 2 },
