@@ -8,7 +8,7 @@
 
 Когда надо отправить нескольких подписчикам событие, вызовите ```send_event ( int type, void *event )```.
 
-Чтобы отписаться от издателя вызовите ```delete_publisher ( int type, void (*subscribe) ( void *event, void *data ) );``` укажите тип издателя и функцию, чтобы удалить её из подписки.
+Чтобы отписаться от издателя вызовите ```delete_publisher ( int type, void (*subscribe) ( void *event, void *data ), void *data );``` укажите тип издателя и функцию, чтобы удалить её из подписки.
 
 
 ```
