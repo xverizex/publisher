@@ -27,11 +27,36 @@ static struct publisher {
 	int *types;
 	int size;
 	struct sub {
+		int type;
 		int size;
 		subs *subscribe;
 		void **data;
 	} *sub;
 } *pb;
+
+static int cmpsub ( const void *p1, const void *p2 ) {
+	int type_p1 = ( int ) ( ( struct sub * ) p1 )->type;
+	int type_p2 = ( int ) ( ( struct sub * ) p2 )->type;
+	return type_p1 > type_p2;
+}
+static int cmptypes ( const void *p1, const void *p2 ) {
+	int types_p1 = *( ( int * ) p1 );
+	int types_p2 = *( ( int * ) p2 );
+	return types_p1 > types_p2;
+}
+
+static int search_bin ( const int type ) {
+	int low, high, middle;
+	low = 0;
+	high = pb->size - 1;
+	while ( low <= high ) {
+		middle = ( low + high ) / 2;
+		if ( type < pb->types[middle] ) high = middle - 1;
+		else if ( type > pb->types[middle] ) low = middle + 1;
+		else return middle;
+	}
+	return -1;
+}
 
 void init_publisher ( int type, void (*subscribe) ( void *event, void *data ), void *data ) {
 	if ( !pb ) {
@@ -39,8 +64,9 @@ void init_publisher ( int type, void (*subscribe) ( void *event, void *data ), v
 		pb->types = calloc ( 0, sizeof ( int ) );
 		pb->sub = calloc ( 0, sizeof ( struct sub ) );
 	}	
-	for ( int i = 0; i < pb->size; i++ ) {
-		if ( pb->types[i] != type ) continue;
+	do {
+		int i = search_bin ( type );
+		if ( i == -1 ) break;
 
 		pb->sub[i].subscribe = realloc ( pb->sub[i].subscribe, sizeof ( subs ) * ( pb->sub[i].size + 1 ) );
 		pb->sub[i].data = realloc ( pb->sub[i].data, sizeof ( void * ) * ( pb->sub[i].size + 1 ) );
@@ -48,10 +74,13 @@ void init_publisher ( int type, void (*subscribe) ( void *event, void *data ), v
 		pb->sub[i].subscribe[size] = subscribe;
 		pb->sub[i].data[size] = data;
 		pb->sub[i].size++;
+
 		return;
-	}
+	} while ( 0 );
+
 	pb->types = realloc ( pb->types, sizeof ( int ) * ( pb->size + 1 ) );
 	pb->sub = realloc ( pb->sub, sizeof ( struct sub ) * ( pb->size + 1 ) );
+	pb->sub[pb->size].type = type;
 	pb->sub[pb->size].subscribe = calloc ( 1, sizeof ( subs ) );
 	pb->sub[pb->size].data = calloc ( 1, sizeof ( void * ) );
 	pb->types[pb->size] = type;
@@ -59,73 +88,73 @@ void init_publisher ( int type, void (*subscribe) ( void *event, void *data ), v
 	pb->sub[pb->size].data[0] = data;
 	pb->sub[pb->size].size = 1;
 	pb->size++;
+
+	qsort ( &pb->sub[0], pb->size, sizeof ( struct sub ), cmpsub );
+	qsort ( &pb->types[0], pb->size, sizeof ( int ), cmptypes );
+
 }
 
 void delete_publisher ( int type, void (*subscribe) ( void *event, void *data ), void *data ) {
-	for ( int i = 0; i < pb->size; i++ ) {
-		if ( pb->types[i] != type ) continue;
+	int i = search_bin ( type );
+	if ( i == -1 ) return;
 
-		for ( int ii = 0; ii < pb->sub[i].size; ii++ ) {
-			if ( pb->sub[i].subscribe[ii] == subscribe && pb->sub[i].data[ii] == data ) {
-				int size = pb->sub[i].size;
-				int pos = size == ii - 1 ? ii : ii + 1;
-				int ss = size == ii - 1 ? ii - 1 : ii;
-				int dst = ss;
-				int src = pos;
-				for ( int iii = pos; iii < size; iii++ ) {
-					pb->sub[i].subscribe[dst] = pb->sub[i].subscribe[src];
-					pb->sub[i].data[dst] = pb->sub[i].data[src];
-					dst++; src++;
-				}
-				size = --pb->sub[i].size;
-				pb->sub[i].subscribe = realloc ( pb->sub[i].subscribe, size * sizeof ( subs ) );
-				pb->sub[i].data = realloc ( pb->sub[i].data, size * sizeof ( void * ) );
-				ii--;
+	for ( int ii = 0; ii < pb->sub[i].size; ii++ ) {
+		if ( pb->sub[i].subscribe[ii] == subscribe && pb->sub[i].data[ii] == data ) {
+			int size = pb->sub[i].size;
+			int pos = size == ii - 1 ? ii : ii + 1;
+			int ss = size == ii - 1 ? ii - 1 : ii;
+			int dst = ss;
+			int src = pos;
+			for ( int iii = pos; iii < size; iii++ ) {
+				pb->sub[i].subscribe[dst] = pb->sub[i].subscribe[src];
+				pb->sub[i].data[dst] = pb->sub[i].data[src];
+				dst++; src++;
 			}
+			size = --pb->sub[i].size;
+			pb->sub[i].subscribe = realloc ( pb->sub[i].subscribe, size * sizeof ( subs ) );
+			pb->sub[i].data = realloc ( pb->sub[i].data, size * sizeof ( void * ) );
+			ii--;
 		}
 	}
 }
 
 void delete_all_publisher ( int type ) {
-	for ( int i = 0; i < pb->size; i++ ) {
-		if ( pb->types[i] != type ) continue;
-		pb->sub[i].size = 0;
-		pb->sub[i].subscribe = realloc ( pb->sub[i].subscribe, 0 );
-		pb->sub[i].data = realloc ( pb->sub[i].data, 0 );
-	}
+	int i = search_bin ( type );
+	if ( i == -1 ) return;
+
+	pb->sub[i].size = 0;
+	pb->sub[i].subscribe = realloc ( pb->sub[i].subscribe, 0 );
+	pb->sub[i].data = realloc ( pb->sub[i].data, 0 );
 }
 void delete_all_subscribe ( int type, void (*subscribe) ( void *event, void *data ) ) {
-	for ( int i = 0; i < pb->size; i++ ) {
-		if ( pb->types[i] != type ) continue;
+	int i = search_bin ( type );
+	if ( i == -1 ) return;
 
-		for ( int ii = 0; ii < pb->sub[i].size; ii++ ) {
-			if ( pb->sub[i].subscribe[ii] == subscribe ) {
-				int size = pb->sub[i].size;
-				int pos = size == ii - 1 ? ii : ii + 1;
-				int ss = size == ii - 1 ? ii - 1 : ii;
-				int dst = ss;
-				int src = pos;
-				for ( int iii = pos; iii < size; iii++ ) {
-					pb->sub[i].subscribe[dst] = pb->sub[i].subscribe[src];
-					pb->sub[i].data[dst] = pb->sub[i].data[src];
-					dst++; src++;
-				}
-				size = --pb->sub[i].size;
-				pb->sub[i].subscribe = realloc ( pb->sub[i].subscribe, size * sizeof ( subs ) );
-				pb->sub[i].data = realloc ( pb->sub[i].data, size * sizeof ( void * ) );
-				ii--;
+	for ( int ii = 0; ii < pb->sub[i].size; ii++ ) {
+		if ( pb->sub[i].subscribe[ii] == subscribe ) {
+			int size = pb->sub[i].size;
+			int pos = size == ii - 1 ? ii : ii + 1;
+			int ss = size == ii - 1 ? ii - 1 : ii;
+			int dst = ss;
+			int src = pos;
+			for ( int iii = pos; iii < size; iii++ ) {
+				pb->sub[i].subscribe[dst] = pb->sub[i].subscribe[src];
+				pb->sub[i].data[dst] = pb->sub[i].data[src];
+				dst++; src++;
 			}
+			size = --pb->sub[i].size;
+			pb->sub[i].subscribe = realloc ( pb->sub[i].subscribe, size * sizeof ( subs ) );
+			pb->sub[i].data = realloc ( pb->sub[i].data, size * sizeof ( void * ) );
+			ii--;
 		}
 	}
 }
 
 void send_event ( int type, void *event ) {
-	for ( int i = 0; i < pb->size; i++ ) {
-		if ( pb->types[i] != type ) continue;
+	int i = search_bin ( type );
+	if ( i == -1 ) return;
 
-		for ( int ii = 0; ii < pb->sub[i].size; ii++ ) {
-			pb->sub[i].subscribe[ii] ( event, pb->sub[i].data[ii] );
-		}
-		return;
+	for ( int ii = 0; ii < pb->sub[i].size; ii++ ) {
+		pb->sub[i].subscribe[ii] ( event, pb->sub[i].data[ii] );
 	}
 }
